@@ -34,6 +34,7 @@ public:
     mv::gui::DecimalAction& getStandardDeviationClipAction() { return _standardDeviationClipAction; }
     mv::gui::DecimalAction& getMinimumDetectionPercentageAction() { return _minimumDetectionPercentageAction; }
     mv::gui::DecimalAction& getMaximumDotDiameterAction() { return _maximumDotDiameterAction; }
+    mv::gui::OptionAction& getPlotOrientationOptionAction() { return _plotOrientationOptionAction; }
     mv::gui::ColorMap1DAction& getColorMap1DAction() { return _colorMap1DAction; }
     MarkerSelectionAction& getMarkerSelectionAction() { return _markerSelectionAction; }
     ExportAction& getExportAction() { return _exportAction; }
@@ -64,6 +65,7 @@ private:
     mv::gui::DecimalAction _standardDeviationClipAction;
     mv::gui::DecimalAction _minimumDetectionPercentageAction;
     mv::gui::DecimalAction _maximumDotDiameterAction;
+    mv::gui::OptionAction _plotOrientationOptionAction;
     mv::gui::ColorMap1DAction _colorMap1DAction;
     mv::gui::TriggerAction _allCellsTriggerAction;
     mv::gui::TriggerAction _helpTriggerAction;

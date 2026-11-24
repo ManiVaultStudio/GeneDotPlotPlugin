@@ -30,6 +30,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _standardDeviationClipAction(this, "Z-score clipping", 0.5f, 5.0f, 2.5f, 1),
     _minimumDetectionPercentageAction(this, "Minimum detection (%)", 0.0f, 100.0f, 0.0f, 1),
     _maximumDotDiameterAction(this, "Maximum diameter (px)", 8.0f, 32.0f, 22.0f, 0),
+    _plotOrientationOptionAction(this, "Plot orientation", {"Horizontal (cell types as rows)", "Vertical (genes as rows)"}),
     _colorMap1DAction(this, "1D Color map", defaultColorMapName),
     _allCellsTriggerAction(this, "All cells"),
     _helpTriggerAction(this, "Help"),
@@ -46,6 +47,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _pointDatasetPickerAction.setDefaultWidgetFlag(OptionAction::Clearable);
     _clusterDatasetPickerAction.setDefaultWidgetFlag(OptionAction::Clearable);
     _inputScaleOptionAction.setCurrentIndex(0);
+    _plotOrientationOptionAction.setCurrentIndex(0);
     _standardDeviationClipAction.setEnabled(false);
     _colorMap1DAction.setDefaultWidgetFlags(ColorMapAction::Default);
     _colorMap1DAction.getRangeAction(ColorMapAction::Axis::X).setEnabled(false);
@@ -58,6 +60,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _standardDeviationClipAction.setToolTip("Symmetric clipping of per-gene z-scores, in standard deviations");
     _minimumDetectionPercentageAction.setToolTip("Hide dots below this percentage without changing summaries or the fixed 0-100% area scale");
     _maximumDotDiameterAction.setToolTip("Diameter in pixels of a dot with 100% detection");
+    _plotOrientationOptionAction.setToolTip("Horizontal: cell types/groups are rows and genes are columns. Vertical: genes are rows and cell types/groups are columns.");
     _colorMap1DAction.setToolTip("Choose the palette for dots and the color legend. Open the settings button to adjust its range, reverse the palette, or use discrete colors.");
     _allCellsTriggerAction.setToolTip("Remove cluster grouping and summarize all loaded cells");
 
@@ -69,6 +72,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     addAction(&_standardDeviationClipAction, DecimalAction::SpinBox);
     addAction(&_minimumDetectionPercentageAction, DecimalAction::SpinBox);
     addAction(&_maximumDotDiameterAction, DecimalAction::SpinBox);
+    addAction(&_plotOrientationOptionAction);
     addAction(&_colorMap1DAction, ColorMapAction::Default);
     addAction(&_allCellsTriggerAction, TriggerAction::Text);
     addAction(&_helpTriggerAction, TriggerAction::Text);
@@ -92,6 +96,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     connect(&_standardDeviationClipAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
     connect(&_minimumDetectionPercentageAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
     connect(&_maximumDotDiameterAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
+    connect(&_plotOrientationOptionAction, &OptionAction::currentIndexChanged, this, &SettingsAction::displaySettingsChanged);
     connect(&_colorMap1DAction.getRangeAction(ColorMapAction::Axis::X), &DecimalRangeAction::rangeChanged, this, [this](const util::NumericalRange<float>& range) {
         emit colorMapRangeChanged(range.getMinimum(), range.getMaximum());
     });
@@ -128,6 +133,8 @@ QWidget* SettingsAction::getWidget(QWidget* parent, const std::int32_t& widgetFl
     settingsLayout->addWidget(_exportAction.createWidget(settingsWidget, GroupAction::Horizontal | GroupAction::NoMargins), 3, 4, 1, 4);
     settingsLayout->addWidget(new QLabel("1D Color map:", settingsWidget), 4, 0, 1, 2);
     settingsLayout->addWidget(_colorMap1DAction.createWidget(settingsWidget, ColorMapAction::Default), 4, 2, 1, 6);
+    settingsLayout->addWidget(new QLabel("Plot orientation:", settingsWidget), 5, 0, 1, 2);
+    settingsLayout->addWidget(_plotOrientationOptionAction.createWidget(settingsWidget), 5, 2, 1, 6);
     settingsLayout->setColumnStretch(1, 1);
     settingsLayout->setColumnStretch(5, 1);
 
@@ -198,6 +205,14 @@ void SettingsAction::fromVariantMap(const QVariantMap& variantMap)
     _standardDeviationClipAction.fromParentVariantMap(variantMap);
     _minimumDetectionPercentageAction.fromParentVariantMap(variantMap);
     _maximumDotDiameterAction.fromParentVariantMap(variantMap);
+    if (variantMap.contains(_plotOrientationOptionAction.getSerializationName()))
+    {
+        _plotOrientationOptionAction.fromParentVariantMap(variantMap);
+    }
+    else
+    {
+        _plotOrientationOptionAction.setCurrentIndex(0);
+    }
     if (variantMap.contains(_colorMap1DAction.getSerializationName()))
     {
         _colorMap1DAction.fromParentVariantMap(variantMap);
@@ -227,6 +242,7 @@ QVariantMap SettingsAction::toVariantMap() const
     _standardDeviationClipAction.insertIntoVariantMap(variantMap);
     _minimumDetectionPercentageAction.insertIntoVariantMap(variantMap);
     _maximumDotDiameterAction.insertIntoVariantMap(variantMap);
+    _plotOrientationOptionAction.insertIntoVariantMap(variantMap);
     _colorMap1DAction.insertIntoVariantMap(variantMap);
     variantMap["Color map range initialized"] = _hasColorMapDataRange || _preserveRestoredColorMapRange;
     _markerSelectionAction.insertIntoVariantMap(variantMap);
@@ -239,6 +255,7 @@ void SettingsAction::restoreLegacySettings(const QVariantMap& pluginVariantMap)
     _colorMap1DAction.setColorMap(defaultColorMapName);
     _hasColorMapDataRange = false;
     _preserveRestoredColorMapRange = false;
+    _plotOrientationOptionAction.setCurrentIndex(0);
     if (pluginVariantMap.contains("GeneDotPlot:Expression"))
     {
         _pointDatasetPickerAction.fromVariantMap(pluginVariantMap.value("GeneDotPlot:Expression").toMap());
@@ -269,6 +286,8 @@ void SettingsAction::showHelp()
 
 Ctrl/Shift-select genes or paste a marker list. Drag genes and groups to reorder. Check groups to show them. Searching hides names without changing selection.
 
+Plot orientation switches between Horizontal (cell types/groups as rows) and Vertical (genes as rows). Group names, colors, counts and selection follow their axis. Changing orientation does not change expression summaries, dot sizes or color scales.
+
 Dot AREA is proportional to the fraction of valid cells whose INPUT value is strictly above the detection threshold. The size scale always spans 0-100%. Mean expression includes zeros and all other valid observations. A blank is zero detection or a hidden dot; x means no valid values. Hover for exact counts and summaries.
 
 Input/color modes:
@@ -281,7 +300,7 @@ Per-gene z-score standardizes color across DISPLAYED groups, using sample standa
 
 1D Color map selects the palette for both dots and the color legend. Its settings button opens the same popup as Scatterplot: adjust the minimum/maximum, mirror the palette, use discrete steps, or edit a custom palette. Values outside the chosen range use the endpoint colors. The selected palette applies to unstandardized expression and per-gene z-scores. Changing palette settings does not recalculate expression summaries. Palette settings and the chosen range are saved in the project. The range resets to the full scale when the expression color-data range changes; dot-size and detection-display changes preserve it.
 
-Click a plot row or dot to select its group and loaded member cells in linked ManiVault views. Ctrl-click toggles a group. Up/Down moves keyboard focus; Enter/Space selects. Selection does not filter cells or recalculate summaries. Group checkboxes change which groups are summarized. Overlapping groups are summarized independently; duplicate indices within a group are removed. Cells outside loaded subsets are omitted.
+Click a group row, group column or dot to select its group and loaded member cells in linked ManiVault views. Ctrl-click toggles a group. Up/Down moves group focus in Horizontal orientation; Left/Right moves group focus in Vertical orientation. Enter/Space selects. Selection does not filter cells or recalculate summaries. Group checkboxes change which groups are summarized. Overlapping groups are summarized independently; duplicate indices within a group are removed. Cells outside loaded subsets are omitted.
 
 Image exports remain disabled in this build. Save CSV includes counts, means, unscaled/displayed color values and method notes. CSV writes are atomic and disabled during aggregation.
 

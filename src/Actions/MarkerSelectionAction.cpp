@@ -73,7 +73,7 @@ QWidget* MarkerSelectionAction::getWidget(QWidget* parent, const std::int32_t& w
     groupVisibilityLayout->addWidget(_hideAllGroupsTriggerAction.createWidget(markerSelectionWidget, TriggerAction::Text));
     markerSelectionLayout->addLayout(groupVisibilityLayout);
 
-    auto* selectionHintLabel = new QLabel("Ctrl/Shift selects genes.\nClick a plot row to select its cells.\nCtrl-click toggles a group.", markerSelectionWidget);
+    auto* selectionHintLabel = new QLabel("Ctrl/Shift selects genes.\nClick a group to select its cells.\nCtrl-click toggles a group.", markerSelectionWidget);
     selectionHintLabel->setWordWrap(true);
     markerSelectionLayout->addWidget(selectionHintLabel);
 

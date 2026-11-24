@@ -632,6 +632,7 @@ void GeneDotPlotPlugin::updatePlotDisplay()
         return;
     }
 
+    _geneDotPlotWidget->setGenesAsRows(_settingsAction.getPlotOrientationOptionAction().getCurrentIndex() == 1);
     _geneDotPlotWidget->setOptions(_settingsAction.getStandardizeExpressionToggleAction().isChecked(), _settingsAction.getStandardDeviationClipAction().getValue(), _settingsAction.getMinimumDetectionPercentageAction().getValue() / 100, _settingsAction.getMaximumDotDiameterAction().getValue());
     if (!_geneSummaries.empty() && !_aggregationWorkTimer.isActive() && !_aggregationRefreshTimer.isActive() && _currentGeneIndex == _selectedGeneDimensionIndices.size())
     {

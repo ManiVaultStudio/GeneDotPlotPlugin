@@ -33,6 +33,7 @@ public:
     void setData(std::vector<DotPlotGroup> cellGroups, std::vector<DotPlotGene> geneSummaries, const QString& plotTitle, const QString& methodDescription);
     void setOptions(bool standardizeGeneExpression, double standardDeviationClip, double minimumDetectionFraction, double maximumDotDiameter);
     void setColorMap(const QImage& colorMapImage);
+    void setGenesAsRows(bool genesAsRows);
     void setColorMapRange(double minimumColorValue, double maximumColorValue);
     double getMinimumColorDataValue() const { return _minimumColorDataValue; }
     double getMaximumColorDataValue() const { return _maximumColorDataValue; }
@@ -58,6 +59,9 @@ private:
     void draw(QPainter& painter, bool exporting) const;
     void refreshLayout();
     void refreshColors();
+    int plotRowCount() const;
+    int plotColumnCount() const;
+    QRectF groupBand(int groupIndex) const;
     int groupAt(const QPointF& point) const;
     int geneAt(const QPointF& point) const;
     QColor valueColor(double value) const;
@@ -72,6 +76,7 @@ private:
     QString _emptyPlotMessage;
     QStringList _methodDescriptionLines;
     bool _standardizeGeneExpression  = false;
+    bool _genesAsRows                = false;
     double _standardDeviationClip    = 2.5;
     double _minimumDetectionFraction = 0.0;
     double _maximumDotDiameter       = 22.0;
@@ -82,7 +87,7 @@ private:
     int _leftMargin                  = 180;
     int _pointCountColumnWidth       = 56;
     int _topMargin                   = 220;
-    int _geneColumnWidth             = 42;
-    int _groupRowHeight              = 34;
-    int _focusedGroupRow             = 0;
+    int _plotColumnWidth             = 42;
+    int _plotRowHeight               = 34;
+    int _focusedGroupIndex           = 0;
 };

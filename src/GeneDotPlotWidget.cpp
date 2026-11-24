@@ -55,7 +55,7 @@ void GeneDotPlotWidget::setData(std::vector<DotPlotGroup> cellGroups, std::vecto
     _plotTitle         = plotTitle;
     _methodDescription = methodDescription;
     _emptyPlotMessage.clear();
-    _focusedGroupRow = std::clamp(_focusedGroupRow, 0, std::max(0, int(_cellGroups.size()) - 1));
+    _focusedGroupIndex = std::clamp(_focusedGroupIndex, 0, std::max(0, int(_cellGroups.size()) - 1));
     refreshColors();
     refreshLayout();
     update();
@@ -85,6 +85,18 @@ void GeneDotPlotWidget::setMessage(const QString& message)
 void GeneDotPlotWidget::setColorMap(const QImage& colorMapImage)
 {
     _colorMapImage = colorMapImage;
+    update();
+}
+
+void GeneDotPlotWidget::setGenesAsRows(bool genesAsRows)
+{
+    if (_genesAsRows == genesAsRows)
+    {
+        return;
+    }
+
+    _genesAsRows = genesAsRows;
+    refreshLayout();
     update();
 }
 
@@ -150,21 +162,38 @@ void GeneDotPlotWidget::refreshLayout()
         _pointCountColumnWidth = std::max(_pointCountColumnWidth, fontMetrics.horizontalAdvance(QString::number(qulonglong(group.cellCount))) + 8);
     }
 
-    _leftMargin = std::max(145, fontMetrics.horizontalAdvance(QStringLiteral("Group")) + _pointCountColumnWidth + 53);
-    _topMargin  = 90;
-    for (const auto& group : _cellGroups)
+    _plotColumnWidth = std::max(42, int(_maximumDotDiameter) + 12);
+    _plotRowHeight   = std::max(34, int(_maximumDotDiameter) + 8);
+    if (_genesAsRows)
     {
-        _leftMargin = std::max(_leftMargin, fontMetrics.horizontalAdvance(group.name) + _pointCountColumnWidth + 53);
+        _leftMargin = std::max(145, fontMetrics.horizontalAdvance(QStringLiteral("numPoints")) + 53);
+        _topMargin  = 140;
+        for (const auto& geneSummary : _geneSummaries)
+        {
+            _leftMargin = std::max(_leftMargin, fontMetrics.horizontalAdvance(geneSummary.name) + 53);
+        }
+        for (const auto& group : _cellGroups)
+        {
+            _topMargin = std::max(_topMargin, fontMetrics.horizontalAdvance(group.name) + 115);
+            _plotColumnWidth = std::max(_plotColumnWidth, fontMetrics.horizontalAdvance(QString::number(qulonglong(group.cellCount))) + 12);
+        }
     }
-    for (const auto& geneSummary : _geneSummaries)
+    else
     {
-        _topMargin = std::max(_topMargin, fontMetrics.horizontalAdvance(geneSummary.name) + 85);
+        _leftMargin = std::max(145, fontMetrics.horizontalAdvance(QStringLiteral("Group")) + _pointCountColumnWidth + 53);
+        _topMargin  = 90;
+        for (const auto& group : _cellGroups)
+        {
+            _leftMargin = std::max(_leftMargin, fontMetrics.horizontalAdvance(group.name) + _pointCountColumnWidth + 53);
+        }
+        for (const auto& geneSummary : _geneSummaries)
+        {
+            _topMargin = std::max(_topMargin, fontMetrics.horizontalAdvance(geneSummary.name) + 85);
+        }
     }
 
     _leftMargin      = std::min(_leftMargin, 420);
     _topMargin       = std::min(_topMargin, 350);
-    _geneColumnWidth = std::max(42, int(_maximumDotDiameter) + 12);
-    _groupRowHeight  = std::max(34, int(_maximumDotDiameter) + 8);
     _methodDescriptionLines.clear();
     const int wrapWidth = sizeHint().width() - 40;
     QString line;
@@ -191,12 +220,33 @@ void GeneDotPlotWidget::refreshLayout()
 
 QSize GeneDotPlotWidget::sizeHint() const
 {
-    return QSize(std::max(760, _leftMargin + int(_geneSummaries.size()) * _geneColumnWidth + 35), std::max(380, _topMargin + int(_cellGroups.size()) * _groupRowHeight + 180 + int(_methodDescriptionLines.size()) * 18));
+    return QSize(std::max(760, _leftMargin + plotColumnCount() * _plotColumnWidth + 35), std::max(380, _topMargin + plotRowCount() * _plotRowHeight + 180 + int(_methodDescriptionLines.size()) * 18));
 }
 
-QPointF GeneDotPlotWidget::dotCenter(int geneIndex, int group) const
+int GeneDotPlotWidget::plotRowCount() const
 {
-    return QPointF(_leftMargin + (geneIndex + 0.5) * _geneColumnWidth, _topMargin + (group + 0.5) * _groupRowHeight);
+    return int(_genesAsRows ? _geneSummaries.size() : _cellGroups.size());
+}
+
+int GeneDotPlotWidget::plotColumnCount() const
+{
+    return int(_genesAsRows ? _cellGroups.size() : _geneSummaries.size());
+}
+
+QPointF GeneDotPlotWidget::dotCenter(int geneIndex, int groupIndex) const
+{
+    const int columnIndex = _genesAsRows ? groupIndex : geneIndex;
+    const int rowIndex = _genesAsRows ? geneIndex : groupIndex;
+    return QPointF(_leftMargin + (columnIndex + 0.5) * _plotColumnWidth, _topMargin + (rowIndex + 0.5) * _plotRowHeight);
+}
+
+QRectF GeneDotPlotWidget::groupBand(int groupIndex) const
+{
+    if (_genesAsRows)
+    {
+        return QRectF(_leftMargin + groupIndex * _plotColumnWidth, 55, _plotColumnWidth, _topMargin + plotRowCount() * _plotRowHeight - 55);
+    }
+    return QRectF(12, _topMargin + groupIndex * _plotRowHeight, sizeHint().width() - 24, _plotRowHeight);
 }
 
 QColor GeneDotPlotWidget::valueColor(double value) const
@@ -234,53 +284,93 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
     }
 
     const QFontMetrics fontMetrics(font());
-    painter.setPen(QColor("#526372"));
-    const double groupNameColumnWidth = _leftMargin - _pointCountColumnWidth - 53;
-    const double pointCountColumnLeft = _leftMargin - _pointCountColumnWidth - 10;
-    const double headerBaseline = _topMargin - 10;
-    const auto pointCountColumnTitle = QStringLiteral("numPoints");
-    painter.drawText(QPointF(33, headerBaseline), QStringLiteral("Group"));
-    painter.drawText(QPointF(_leftMargin - 10 - fontMetrics.horizontalAdvance(pointCountColumnTitle), headerBaseline), pointCountColumnTitle);
-
-    for (int geneIndex = 0; geneIndex < int(_geneSummaries.size()); ++geneIndex)
+    for (int rowIndex = 0; rowIndex < plotRowCount(); ++rowIndex)
     {
-        painter.save();
-        painter.translate(dotCenter(geneIndex, 0).x() + 4, _topMargin - 10);
-        painter.rotate(-90);
-        painter.drawText(0, 0, fontMetrics.elidedText(_geneSummaries[geneIndex].name, Qt::ElideRight, _topMargin - 75));
-        painter.restore();
+        if (rowIndex % 2 == 0)
+        {
+            painter.fillRect(QRectF(12, _topMargin + rowIndex * _plotRowHeight, sizeHint().width() - 24, _plotRowHeight), QColor("#f6f8fa"));
+        }
     }
-    for (int groupRow = 0; groupRow < int(_cellGroups.size()); ++groupRow)
+    for (int groupIndex = 0; groupIndex < int(_cellGroups.size()); ++groupIndex)
     {
-        const auto& group = _cellGroups[groupRow];
-        const double y    = dotCenter(0, groupRow).y();
-        const QRectF band(12, y - _groupRowHeight / 2.0, sizeHint().width() - 24, _groupRowHeight);
-        const bool selectedClusterIndices = _selectedClusterIndices.contains(group.clusterIndex);
-        if (selectedClusterIndices)
+        if (_selectedClusterIndices.contains(_cellGroups[groupIndex].clusterIndex))
         {
-            painter.fillRect(band, QColor("#e0eef9"));
+            painter.fillRect(groupBand(groupIndex), QColor("#e0eef9"));
         }
-        else if (groupRow % 2 == 0)
+    }
+
+    painter.setPen(QColor("#526372"));
+    const double headerBaseline = _topMargin - 10;
+    if (_genesAsRows)
+    {
+        painter.drawText(QPointF(33, _topMargin - 58), QStringLiteral("Group"));
+        painter.drawText(QPointF(33, _topMargin - 28), QStringLiteral("numPoints"));
+        painter.drawText(QPointF(33, headerBaseline), QStringLiteral("Gene"));
+        for (int groupIndex = 0; groupIndex < int(_cellGroups.size()); ++groupIndex)
         {
-            painter.fillRect(band, QColor("#f6f8fa"));
+            const auto& group = _cellGroups[groupIndex];
+            const double x = dotCenter(0, groupIndex).x();
+            painter.save();
+            painter.translate(x + 4, _topMargin - 58);
+            painter.rotate(-90);
+            painter.drawText(0, 0, fontMetrics.elidedText(group.name, Qt::ElideRight, _topMargin - 115));
+            painter.restore();
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(group.color);
+            painter.drawRoundedRect(QRectF(x - 7, _topMargin - 47, 14, 5), 2, 2);
+            painter.setPen(QColor("#64748b"));
+            painter.drawText(QRectF(x - _plotColumnWidth / 2.0, _topMargin - 44, _plotColumnWidth, 24), Qt::AlignHCenter | Qt::AlignVCenter, QString::number(qulonglong(group.cellCount)));
+            painter.setPen(QColor("#526372"));
         }
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(group.color);
-        painter.drawRoundedRect(QRectF(20, y - 7, 5, 14), 2, 2);
+
         painter.setPen(QColor("#172b3a"));
-        painter.drawText(QRectF(33, y - 12, groupNameColumnWidth, 24), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics.elidedText(group.name, Qt::ElideRight, int(groupNameColumnWidth)));
-        painter.setPen(QColor("#64748b"));
-        painter.drawText(QRectF(pointCountColumnLeft, y - 12, _pointCountColumnWidth, 24), Qt::AlignRight | Qt::AlignVCenter, QString::number(qulonglong(group.cellCount)));
-        if (!exporting && hasFocus() && groupRow == _focusedGroupRow)
-        {
-            painter.setPen(QPen(QColor("#2563eb"), 1, Qt::DashLine));
-            painter.setBrush(Qt::NoBrush);
-            painter.drawRect(band.adjusted(1, 1, -1, -1));
-        }
         for (int geneIndex = 0; geneIndex < int(_geneSummaries.size()); ++geneIndex)
         {
-            const auto& summary = _geneSummaries[geneIndex].groupSummaries[groupRow];
-            const auto center   = dotCenter(geneIndex, groupRow);
+            const double y = dotCenter(geneIndex, 0).y();
+            painter.drawText(QRectF(33, y - 12, _leftMargin - 53, 24), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics.elidedText(_geneSummaries[geneIndex].name, Qt::ElideRight, _leftMargin - 53));
+        }
+    }
+    else
+    {
+        const double groupNameColumnWidth = _leftMargin - _pointCountColumnWidth - 53;
+        const double pointCountColumnLeft = _leftMargin - _pointCountColumnWidth - 10;
+        const auto pointCountColumnTitle = QStringLiteral("numPoints");
+        painter.drawText(QPointF(33, headerBaseline), QStringLiteral("Group"));
+        painter.drawText(QPointF(_leftMargin - 10 - fontMetrics.horizontalAdvance(pointCountColumnTitle), headerBaseline), pointCountColumnTitle);
+        for (int geneIndex = 0; geneIndex < int(_geneSummaries.size()); ++geneIndex)
+        {
+            painter.save();
+            painter.translate(dotCenter(geneIndex, 0).x() + 4, headerBaseline);
+            painter.rotate(-90);
+            painter.drawText(0, 0, fontMetrics.elidedText(_geneSummaries[geneIndex].name, Qt::ElideRight, _topMargin - 75));
+            painter.restore();
+        }
+        for (int groupIndex = 0; groupIndex < int(_cellGroups.size()); ++groupIndex)
+        {
+            const auto& group = _cellGroups[groupIndex];
+            const double y = dotCenter(0, groupIndex).y();
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(group.color);
+            painter.drawRoundedRect(QRectF(20, y - 7, 5, 14), 2, 2);
+            painter.setPen(QColor("#172b3a"));
+            painter.drawText(QRectF(33, y - 12, groupNameColumnWidth, 24), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics.elidedText(group.name, Qt::ElideRight, int(groupNameColumnWidth)));
+            painter.setPen(QColor("#64748b"));
+            painter.drawText(QRectF(pointCountColumnLeft, y - 12, _pointCountColumnWidth, 24), Qt::AlignRight | Qt::AlignVCenter, QString::number(qulonglong(group.cellCount)));
+        }
+    }
+
+    if (!exporting && hasFocus())
+    {
+        painter.setPen(QPen(QColor("#2563eb"), 1, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(groupBand(_focusedGroupIndex).adjusted(1, 1, -1, -1));
+    }
+    for (int geneIndex = 0; geneIndex < int(_geneSummaries.size()); ++geneIndex)
+    {
+        for (int groupIndex = 0; groupIndex < int(_cellGroups.size()); ++groupIndex)
+        {
+            const auto& summary = _geneSummaries[geneIndex].groupSummaries[groupIndex];
+            const auto center   = dotCenter(geneIndex, groupIndex);
             if (!summary.validCellCount)
             {
                 painter.setPen(QPen(QColor("#9ca3af"), 1));
@@ -290,14 +380,14 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
             else if (summary.detectionFraction() > 0 && summary.detectionFraction() >= _minimumDetectionFraction)
             {
                 const double radius = genedot::dotRadius(summary.detectionFraction(), _maximumDotDiameter / 2);
-                painter.setBrush(valueColor(_geneColorValues[geneIndex][groupRow]));
+                painter.setBrush(valueColor(_geneColorValues[geneIndex][groupIndex]));
                 painter.setPen(Qt::NoPen);
                 painter.drawEllipse(center, radius, radius);
             }
         }
     }
 
-    const int legendY = _topMargin + int(_cellGroups.size()) * _groupRowHeight + 26;
+    const int legendY = _topMargin + plotRowCount() * _plotRowHeight + 26;
     painter.setPen(QColor("#172b3a"));
     painter.drawText(20, legendY, "Cells above threshold (%) - area proportional");
     for (int i = 1; i <= 4; ++i)
@@ -363,7 +453,7 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
         painter.drawText(QPointF(colorLegendLabelPositions[tickIndex], legendY + 52), colorLegendLabels[tickIndex]);
     }
     painter.setPen(QColor("#526372"));
-    painter.drawText(20, legendY + 88, QString("Blank: zero detection or below %1%.   x: no valid values.   Row counts: loaded cells/spots.").arg(_minimumDetectionFraction * 100, 0, 'g', 4));
+    painter.drawText(20, legendY + 88, QString("Blank: zero detection or below %1%.   x: no valid values.   Group counts: loaded cells/spots.").arg(_minimumDetectionFraction * 100, 0, 'g', 4));
     int textY = legendY + 113;
     for (const auto& line : _methodDescriptionLines)
     {
@@ -379,23 +469,47 @@ void GeneDotPlotWidget::paintEvent(QPaintEvent*)
 }
 int GeneDotPlotWidget::groupAt(const QPointF& point) const
 {
-    if (point.y() < _topMargin || point.x() < 12 || point.x() > _leftMargin + int(_geneSummaries.size()) * _geneColumnWidth)
+    if (!hasData())
     {
         return -1;
     }
-
-    const int groupRow = int((point.y() - _topMargin) / _groupRowHeight);
-    return groupRow >= 0 && groupRow < int(_cellGroups.size()) ? groupRow : -1;
+    const double plotRight = _leftMargin + plotColumnCount() * _plotColumnWidth;
+    const double plotBottom = _topMargin + plotRowCount() * _plotRowHeight;
+    if (_genesAsRows)
+    {
+        if (point.x() < _leftMargin || point.x() >= plotRight || point.y() < 55 || point.y() >= plotBottom)
+        {
+            return -1;
+        }
+        return int((point.x() - _leftMargin) / _plotColumnWidth);
+    }
+    if (point.y() < _topMargin || point.y() >= plotBottom || point.x() < 12 || point.x() >= plotRight)
+    {
+        return -1;
+    }
+    return int((point.y() - _topMargin) / _plotRowHeight);
 }
 int GeneDotPlotWidget::geneAt(const QPointF& point) const
 {
-    if (point.x() < _leftMargin)
+    if (!hasData())
     {
         return -1;
     }
-
-    const int geneIndex = int((point.x() - _leftMargin) / _geneColumnWidth);
-    return geneIndex >= 0 && geneIndex < int(_geneSummaries.size()) ? geneIndex : -1;
+    const double plotRight = _leftMargin + plotColumnCount() * _plotColumnWidth;
+    const double plotBottom = _topMargin + plotRowCount() * _plotRowHeight;
+    if (_genesAsRows)
+    {
+        if (point.y() < _topMargin || point.y() >= plotBottom || point.x() < 12 || point.x() >= plotRight)
+        {
+            return -1;
+        }
+        return int((point.y() - _topMargin) / _plotRowHeight);
+    }
+    if (point.x() < _leftMargin || point.x() >= plotRight || point.y() < 55 || point.y() >= plotBottom)
+    {
+        return -1;
+    }
+    return int((point.x() - _leftMargin) / _plotColumnWidth);
 }
 
 QString GeneDotPlotWidget::cellDescription(int geneIndex, int group) const
@@ -420,11 +534,15 @@ bool GeneDotPlotWidget::event(QEvent* event)
     if (event->type() == QEvent::ToolTip)
     {
         auto* help         = static_cast<QHelpEvent*>(event);
-        const int groupRow = groupAt(help->pos()), geneIndex = geneAt(help->pos());
-        if (groupRow >= 0)
+        const int groupIndex = groupAt(help->pos()), geneIndex = geneAt(help->pos());
+        if (groupIndex >= 0)
         {
-            const QString text = geneIndex >= 0 ? cellDescription(geneIndex, groupRow) : _cellGroups[groupRow].name + "\nClick selects this group.";
+            const QString text = geneIndex >= 0 ? cellDescription(geneIndex, groupIndex) : _cellGroups[groupIndex].name + "\nClick selects this group.";
             QToolTip::showText(help->globalPos(), text.toHtmlEscaped().replace('\n', "<br>"), this);
+        }
+        else if (geneIndex >= 0)
+        {
+            QToolTip::showText(help->globalPos(), _geneSummaries[geneIndex].name.toHtmlEscaped(), this);
         }
         else
         {
@@ -439,13 +557,13 @@ void GeneDotPlotWidget::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
-        const int groupRow = groupAt(event->position());
-        if (groupRow >= 0)
+        const int groupIndex = groupAt(event->position());
+        if (groupIndex >= 0)
         {
-            _focusedGroupRow = groupRow;
+            _focusedGroupIndex = groupIndex;
             setFocus();
             update();
-            emit groupActivated(_cellGroups[groupRow].clusterIndex, event->modifiers().testFlag(Qt::ControlModifier));
+            emit groupActivated(_cellGroups[groupIndex].clusterIndex, event->modifiers().testFlag(Qt::ControlModifier));
         }
     }
     QWidget::mousePressEvent(event);
@@ -453,19 +571,21 @@ void GeneDotPlotWidget::mousePressEvent(QMouseEvent* event)
 
 void GeneDotPlotWidget::keyPressEvent(QKeyEvent* event)
 {
-    if (_cellGroups.empty())
+    if (!hasData())
     {
         return;
     }
-    if (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down)
+    const int previousGroupKey = _genesAsRows ? Qt::Key_Left : Qt::Key_Up;
+    const int nextGroupKey = _genesAsRows ? Qt::Key_Right : Qt::Key_Down;
+    if (event->key() == previousGroupKey || event->key() == nextGroupKey)
     {
-        _focusedGroupRow = std::clamp(_focusedGroupRow + (event->key() == Qt::Key_Up ? -1 : 1), 0, int(_cellGroups.size()) - 1);
+        _focusedGroupIndex = std::clamp(_focusedGroupIndex + (event->key() == previousGroupKey ? -1 : 1), 0, int(_cellGroups.size()) - 1);
         update();
         event->accept();
     }
     else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space)
     {
-        emit groupActivated(_cellGroups[_focusedGroupRow].clusterIndex, event->modifiers().testFlag(Qt::ControlModifier));
+        emit groupActivated(_cellGroups[_focusedGroupIndex].clusterIndex, event->modifiers().testFlag(Qt::ControlModifier));
         event->accept();
     }
     else
