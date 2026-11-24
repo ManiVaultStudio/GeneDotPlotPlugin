@@ -90,6 +90,8 @@ void GeneDotPlotPlugin::init()
     connect(&_settingsAction, &SettingsAction::displaySettingsChanged, this, &GeneDotPlotPlugin::updatePlotDisplay);
     connect(&markerSelectionAction, &MarkerSelectionAction::selectionChanged, this, &GeneDotPlotPlugin::scheduleAggregation);
     connect(_geneDotPlotWidget, &GeneDotPlotWidget::groupActivated, this, &GeneDotPlotPlugin::selectGroupCells);
+    connect(&_settingsAction.getColorMap1DAction(), &ColorMapAction::imageChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMap);
+    _geneDotPlotWidget->setColorMap(_settingsAction.getColorMap1DAction().getColorMapImage());
 
     if (_hasDeferredProjectState)
     {

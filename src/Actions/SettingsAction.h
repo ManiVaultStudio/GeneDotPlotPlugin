@@ -3,6 +3,7 @@
 #include "ExportAction.h"
 #include "MarkerSelectionAction.h"
 
+#include <actions/ColorMap1DAction.h>
 #include <actions/DatasetPickerAction.h>
 #include <actions/DecimalAction.h>
 #include <actions/GroupAction.h>
@@ -32,6 +33,7 @@ public:
     mv::gui::DecimalAction& getStandardDeviationClipAction() { return _standardDeviationClipAction; }
     mv::gui::DecimalAction& getMinimumDetectionPercentageAction() { return _minimumDetectionPercentageAction; }
     mv::gui::DecimalAction& getMaximumDotDiameterAction() { return _maximumDotDiameterAction; }
+    mv::gui::ColorMap1DAction& getColorMap1DAction() { return _colorMap1DAction; }
     MarkerSelectionAction& getMarkerSelectionAction() { return _markerSelectionAction; }
     ExportAction& getExportAction() { return _exportAction; }
     mv::gui::StringAction& getStatusMessageAction() { return _statusMessageAction; }
@@ -60,6 +62,7 @@ private:
     mv::gui::DecimalAction _standardDeviationClipAction;
     mv::gui::DecimalAction _minimumDetectionPercentageAction;
     mv::gui::DecimalAction _maximumDotDiameterAction;
+    mv::gui::ColorMap1DAction _colorMap1DAction;
     mv::gui::TriggerAction _allCellsTriggerAction;
     mv::gui::TriggerAction _helpTriggerAction;
     MarkerSelectionAction _markerSelectionAction;

@@ -2,6 +2,7 @@
 
 #include "DotPlotStatistics.h"
 #include <QColor>
+#include <QImage>
 #include <QSet>
 #include <QStringList>
 #include <QWidget>
@@ -31,6 +32,7 @@ public:
     explicit GeneDotPlotWidget(QWidget* parent = nullptr);
     void setData(std::vector<DotPlotGroup> cellGroups, std::vector<DotPlotGene> geneSummaries, const QString& plotTitle, const QString& methodDescription);
     void setOptions(bool standardizeGeneExpression, double standardDeviationClip, double minimumDetectionFraction, double maximumDotDiameter);
+    void setColorMap(const QImage& colorMapImage);
     void setSelectedClusters(const QSet<int>& selectedClusterIndices);
     void setMessage(const QString& message);
     bool exportPlot(const QString& outputFilePath, bool saveAsSvg, QString& errorMessage) const;
@@ -60,6 +62,7 @@ private:
     std::vector<DotPlotGroup> _cellGroups;
     std::vector<DotPlotGene> _geneSummaries;
     std::vector<std::vector<double>> _geneColorValues;
+    QImage _colorMapImage;
     QSet<int> _selectedClusterIndices;
     QString _plotTitle;
     QString _methodDescription;

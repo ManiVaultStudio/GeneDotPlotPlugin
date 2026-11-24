@@ -13,6 +13,10 @@
 using namespace mv;
 using namespace mv::gui;
 
+namespace {
+const QString defaultColorMapName = QStringLiteral("GnBu");
+}
+
 SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     GroupAction(parent, title, true),
     _pointDatasetPickerAction(this, "Expression dataset"),
@@ -23,6 +27,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _standardDeviationClipAction(this, "Z-score clipping", 0.5f, 5.0f, 2.5f, 1),
     _minimumDetectionPercentageAction(this, "Minimum detection (%)", 0.0f, 100.0f, 0.0f, 1),
     _maximumDotDiameterAction(this, "Maximum diameter (px)", 8.0f, 32.0f, 22.0f, 0),
+    _colorMap1DAction(this, "1D Color map", defaultColorMapName),
     _allCellsTriggerAction(this, "All cells"),
     _helpTriggerAction(this, "Help"),
     _markerSelectionAction(this, "Marker selection"),
@@ -39,6 +44,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _clusterDatasetPickerAction.setDefaultWidgetFlag(OptionAction::Clearable);
     _inputScaleOptionAction.setCurrentIndex(0);
     _standardDeviationClipAction.setEnabled(false);
+    _colorMap1DAction.setDefaultWidgetFlags(0);
 
     _pointDatasetPickerAction.setToolTip("Expression Points: cells/spots as rows, genes as dimensions");
     _clusterDatasetPickerAction.setToolTip("Clusters whose Points parent shares the expression dataset's source-cell index space");
@@ -48,6 +54,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _standardDeviationClipAction.setToolTip("Symmetric clipping of per-gene z-scores, in standard deviations");
     _minimumDetectionPercentageAction.setToolTip("Hide dots below this percentage without changing summaries or the fixed 0-100% area scale");
     _maximumDotDiameterAction.setToolTip("Diameter in pixels of a dot with 100% detection");
+    _colorMap1DAction.setToolTip("Choose the color map for dot expression values and the color legend. Expression ranges are controlled by the plot settings.");
     _allCellsTriggerAction.setToolTip("Remove cluster grouping and summarize all loaded cells");
 
     addAction(&_pointDatasetPickerAction);
@@ -58,6 +65,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     addAction(&_standardDeviationClipAction, DecimalAction::SpinBox);
     addAction(&_minimumDetectionPercentageAction, DecimalAction::SpinBox);
     addAction(&_maximumDotDiameterAction, DecimalAction::SpinBox);
+    addAction(&_colorMap1DAction, 0);
     addAction(&_allCellsTriggerAction, TriggerAction::Text);
     addAction(&_helpTriggerAction, TriggerAction::Text);
     addAction(&_markerSelectionAction);
@@ -111,6 +119,8 @@ QWidget* SettingsAction::getWidget(QWidget* parent, const std::int32_t& widgetFl
     settingsLayout->addWidget(new QLabel("Maximum diameter (px):", settingsWidget), 3, 0, 1, 2);
     settingsLayout->addWidget(_maximumDotDiameterAction.createWidget(settingsWidget, DecimalAction::SpinBox), 3, 2, 1, 2);
     settingsLayout->addWidget(_exportAction.createWidget(settingsWidget, GroupAction::Horizontal | GroupAction::NoMargins), 3, 4, 1, 4);
+    settingsLayout->addWidget(new QLabel("1D Color map:", settingsWidget), 4, 0, 1, 2);
+    settingsLayout->addWidget(_colorMap1DAction.createWidget(settingsWidget, 0), 4, 2, 1, 6);
     settingsLayout->setColumnStretch(1, 1);
     settingsLayout->setColumnStretch(5, 1);
 
@@ -128,6 +138,15 @@ void SettingsAction::fromVariantMap(const QVariantMap& variantMap)
     _standardDeviationClipAction.fromParentVariantMap(variantMap);
     _minimumDetectionPercentageAction.fromParentVariantMap(variantMap);
     _maximumDotDiameterAction.fromParentVariantMap(variantMap);
+    if (variantMap.contains(_colorMap1DAction.getSerializationName()))
+    {
+        _colorMap1DAction.fromParentVariantMap(variantMap);
+    }
+    else
+    {
+        _colorMap1DAction.setColorMap(defaultColorMapName);
+    }
+
     _markerSelectionAction.fromParentVariantMap(variantMap);
     _standardDeviationClipAction.setEnabled(_standardizeExpressionToggleAction.isChecked());
 }
@@ -143,6 +162,7 @@ QVariantMap SettingsAction::toVariantMap() const
     _standardDeviationClipAction.insertIntoVariantMap(variantMap);
     _minimumDetectionPercentageAction.insertIntoVariantMap(variantMap);
     _maximumDotDiameterAction.insertIntoVariantMap(variantMap);
+    _colorMap1DAction.insertIntoVariantMap(variantMap);
     _markerSelectionAction.insertIntoVariantMap(variantMap);
     return variantMap;
 }
@@ -150,6 +170,7 @@ QVariantMap SettingsAction::toVariantMap() const
 void SettingsAction::restoreLegacySettings(const QVariantMap& pluginVariantMap)
 {
     // Keep projects from the original QWidget-based implementation readable.
+    _colorMap1DAction.setColorMap(defaultColorMapName);
     if (pluginVariantMap.contains("GeneDotPlot:Expression"))
     {
         _pointDatasetPickerAction.fromVariantMap(pluginVariantMap.value("GeneDotPlot:Expression").toMap());
@@ -189,6 +210,8 @@ Log1p normalized: mean(expm1(input)), then log1p for color, following Seurat-sty
 The last two modes reject negative input. Nonfinite input and back-transform overflow are excluded and reported. No library-size normalization is performed.
 
 Per-gene z-score standardizes color across DISPLAYED groups, using sample standard deviation and symmetric clipping. Constant and single-group genes map to zero. Scaling with few groups can be misleading; scaled colors cannot compare absolute expression between genes.
+
+1D Color map selects the palette for both dots and the color legend. The selected palette applies to unstandardized expression and per-gene z-scores. Changing the palette does not recalculate expression summaries. Palette selection is saved in the project.
 
 Click a plot row or dot to select its group and loaded member cells in linked ManiVault views. Ctrl-click toggles a group. Up/Down moves keyboard focus; Enter/Space selects. Selection does not filter cells or recalculate summaries. Group checkboxes change which groups are summarized. Overlapping groups are summarized independently; duplicate indices within a group are removed. Cells outside loaded subsets are omitted.
 

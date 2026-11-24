@@ -3,7 +3,6 @@
 #include <QFontMetrics>
 #include <QHelpEvent>
 #include <QKeyEvent>
-#include <QLinearGradient>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSaveFile>
@@ -80,6 +79,12 @@ void GeneDotPlotWidget::setMessage(const QString& message)
     _geneSummaries.clear();
     _geneColorValues.clear();
     refreshLayout();
+    update();
+}
+
+void GeneDotPlotWidget::setColorMap(const QImage& colorMapImage)
+{
+    _colorMapImage = colorMapImage;
     update();
 }
 
@@ -175,6 +180,12 @@ QPointF GeneDotPlotWidget::dotCenter(int geneIndex, int group) const
 QColor GeneDotPlotWidget::valueColor(double value) const
 {
     const double interpolation = std::clamp((value - _minimumColorValue) / (_maximumColorValue - _minimumColorValue), 0.0, 1.0);
+    if (!_colorMapImage.isNull())
+    {
+        const auto pixelColumn = static_cast<int>(std::lround(interpolation * (_colorMapImage.width() - 1)));
+        return _colorMapImage.pixelColor(pixelColumn, _colorMapImage.height() / 2);
+    }
+
     if (_standardizeGeneExpression)
     {
         return interpolation < .5 ? blend(QColor("#2166ac"), QColor("#f7f7f7"), interpolation * 2)
@@ -271,11 +282,18 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
         painter.drawText(QRectF(x - 25, legendY + 43, 50, 20), Qt::AlignCenter, QString::number(i * 25));
     }
     painter.drawText(370, legendY, colorLabel());
-    QLinearGradient gradient(370, 0, 650, 0);
-    gradient.setColorAt(0, valueColor(_minimumColorValue));
-    gradient.setColorAt(.5, valueColor((_minimumColorValue + _maximumColorValue) / 2));
-    gradient.setColorAt(1, valueColor(_maximumColorValue));
-    painter.fillRect(QRectF(370, legendY + 14, 280, 16), gradient);
+
+    // Sample every legend column through the same lookup as the dots so all
+    // palette stops, discrete colors and alpha values are represented.
+    constexpr int colorLegendWidth = 280;
+    QImage colorLegendImage(colorLegendWidth, 1, QImage::Format_ARGB32);
+    for (int pixelColumn = 0; pixelColumn < colorLegendWidth; ++pixelColumn)
+    {
+        const auto expressionValue = _minimumColorValue + (_maximumColorValue - _minimumColorValue) * pixelColumn / double(colorLegendWidth - 1);
+        colorLegendImage.setPixelColor(pixelColumn, 0, valueColor(expressionValue));
+    }
+
+    painter.drawImage(QRectF(370, legendY + 14, colorLegendWidth, 16), colorLegendImage);
     painter.drawText(370, legendY + 52, formatNumber(_minimumColorValue));
     painter.drawText(QRectF(550, legendY + 35, 100, 25), Qt::AlignRight | Qt::AlignVCenter, formatNumber(_maximumColorValue));
     painter.setPen(QColor("#526372"));
