@@ -33,6 +33,9 @@ public:
     void setData(std::vector<DotPlotGroup> cellGroups, std::vector<DotPlotGene> geneSummaries, const QString& plotTitle, const QString& methodDescription);
     void setOptions(bool standardizeGeneExpression, double standardDeviationClip, double minimumDetectionFraction, double maximumDotDiameter);
     void setColorMap(const QImage& colorMapImage);
+    void setColorMapRange(double minimumColorValue, double maximumColorValue);
+    double getMinimumColorDataValue() const { return _minimumColorDataValue; }
+    double getMaximumColorDataValue() const { return _maximumColorDataValue; }
     void setSelectedClusters(const QSet<int>& selectedClusterIndices);
     void setMessage(const QString& message);
     bool exportPlot(const QString& outputFilePath, bool saveAsSvg, QString& errorMessage) const;
@@ -74,6 +77,8 @@ private:
     double _maximumDotDiameter       = 22.0;
     double _minimumColorValue        = 0.0;
     double _maximumColorValue        = 1.0;
+    double _minimumColorDataValue    = 0.0;
+    double _maximumColorDataValue    = 1.0;
     int _leftMargin                  = 180;
     int _pointCountColumnWidth       = 56;
     int _topMargin                   = 220;

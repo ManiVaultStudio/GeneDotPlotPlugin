@@ -6,9 +6,12 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 using namespace mv;
 using namespace mv::gui;
@@ -44,7 +47,8 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _clusterDatasetPickerAction.setDefaultWidgetFlag(OptionAction::Clearable);
     _inputScaleOptionAction.setCurrentIndex(0);
     _standardDeviationClipAction.setEnabled(false);
-    _colorMap1DAction.setDefaultWidgetFlags(0);
+    _colorMap1DAction.setDefaultWidgetFlags(ColorMapAction::Default);
+    _colorMap1DAction.getRangeAction(ColorMapAction::Axis::X).setEnabled(false);
 
     _pointDatasetPickerAction.setToolTip("Expression Points: cells/spots as rows, genes as dimensions");
     _clusterDatasetPickerAction.setToolTip("Clusters whose Points parent shares the expression dataset's source-cell index space");
@@ -54,7 +58,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _standardDeviationClipAction.setToolTip("Symmetric clipping of per-gene z-scores, in standard deviations");
     _minimumDetectionPercentageAction.setToolTip("Hide dots below this percentage without changing summaries or the fixed 0-100% area scale");
     _maximumDotDiameterAction.setToolTip("Diameter in pixels of a dot with 100% detection");
-    _colorMap1DAction.setToolTip("Choose the color map for dot expression values and the color legend. Expression ranges are controlled by the plot settings.");
+    _colorMap1DAction.setToolTip("Choose the palette for dots and the color legend. Open the settings button to adjust its range, reverse the palette, or use discrete colors.");
     _allCellsTriggerAction.setToolTip("Remove cluster grouping and summarize all loaded cells");
 
     addAction(&_pointDatasetPickerAction);
@@ -65,7 +69,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     addAction(&_standardDeviationClipAction, DecimalAction::SpinBox);
     addAction(&_minimumDetectionPercentageAction, DecimalAction::SpinBox);
     addAction(&_maximumDotDiameterAction, DecimalAction::SpinBox);
-    addAction(&_colorMap1DAction, 0);
+    addAction(&_colorMap1DAction, ColorMapAction::Default);
     addAction(&_allCellsTriggerAction, TriggerAction::Text);
     addAction(&_helpTriggerAction, TriggerAction::Text);
     addAction(&_markerSelectionAction);
@@ -88,6 +92,9 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     connect(&_standardDeviationClipAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
     connect(&_minimumDetectionPercentageAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
     connect(&_maximumDotDiameterAction, &DecimalAction::valueChanged, this, &SettingsAction::displaySettingsChanged);
+    connect(&_colorMap1DAction.getRangeAction(ColorMapAction::Axis::X), &DecimalRangeAction::rangeChanged, this, [this](const util::NumericalRange<float>& range) {
+        emit colorMapRangeChanged(range.getMinimum(), range.getMaximum());
+    });
     connect(&_allCellsTriggerAction, &TriggerAction::triggered, this, &SettingsAction::allCellsRequested);
     connect(&_helpTriggerAction, &TriggerAction::triggered, this, &SettingsAction::showHelp);
 }
@@ -120,11 +127,64 @@ QWidget* SettingsAction::getWidget(QWidget* parent, const std::int32_t& widgetFl
     settingsLayout->addWidget(_maximumDotDiameterAction.createWidget(settingsWidget, DecimalAction::SpinBox), 3, 2, 1, 2);
     settingsLayout->addWidget(_exportAction.createWidget(settingsWidget, GroupAction::Horizontal | GroupAction::NoMargins), 3, 4, 1, 4);
     settingsLayout->addWidget(new QLabel("1D Color map:", settingsWidget), 4, 0, 1, 2);
-    settingsLayout->addWidget(_colorMap1DAction.createWidget(settingsWidget, 0), 4, 2, 1, 6);
+    settingsLayout->addWidget(_colorMap1DAction.createWidget(settingsWidget, ColorMapAction::Default), 4, 2, 1, 6);
     settingsLayout->setColumnStretch(1, 1);
     settingsLayout->setColumnStretch(5, 1);
 
     return settingsWidget;
+}
+
+void SettingsAction::updateColorMapDataRange(double minimumColorDataValue, double maximumColorDataValue)
+{
+    if (!std::isfinite(minimumColorDataValue) || !std::isfinite(maximumColorDataValue) || minimumColorDataValue >= maximumColorDataValue)
+    {
+        return;
+    }
+
+    const double maximumRangeValue = std::numeric_limits<float>::max();
+    float minimumDataValue = float(std::clamp(minimumColorDataValue, -maximumRangeValue, maximumRangeValue));
+    float maximumDataValue = float(std::clamp(maximumColorDataValue, -maximumRangeValue, maximumRangeValue));
+    if (minimumDataValue == maximumDataValue)
+    {
+        if (maximumDataValue < std::numeric_limits<float>::max())
+        {
+            maximumDataValue = std::nextafter(maximumDataValue, std::numeric_limits<float>::max());
+        }
+        else
+        {
+            minimumDataValue = std::nextafter(minimumDataValue, std::numeric_limits<float>::lowest());
+        }
+    }
+
+    const util::NumericalRange<float> dataRange(minimumDataValue, maximumDataValue);
+    auto& colorMapRangeAction = _colorMap1DAction.getRangeAction(ColorMapAction::Axis::X);
+    auto& colorMapDataRangeAction = _colorMap1DAction.getDataRangeAction(ColorMapAction::Axis::X);
+    if (!_hasColorMapDataRange || colorMapDataRangeAction.getRange() != dataRange)
+    {
+        auto colorMapRange = dataRange;
+        if (_preserveRestoredColorMapRange)
+        {
+            const auto restoredMinimum = std::clamp(colorMapRangeAction.getMinimum(), minimumDataValue, maximumDataValue);
+            const auto restoredMaximum = std::clamp(colorMapRangeAction.getMaximum(), minimumDataValue, maximumDataValue);
+            if (std::isfinite(restoredMinimum) && std::isfinite(restoredMaximum) && restoredMinimum < restoredMaximum)
+            {
+                colorMapRange = { restoredMinimum, restoredMaximum };
+            }
+        }
+
+        // Use the same range/data-range actions as Scatterplot. Block intermediate
+        // endpoint changes so the plot receives the completed range only.
+        const QSignalBlocker rangeSignalBlocker(&colorMapRangeAction);
+        colorMapRangeAction.initialize(dataRange, colorMapRange);
+        colorMapRangeAction.getRangeMinAction().setNumberOfDecimals(6);
+        colorMapRangeAction.getRangeMaxAction().setNumberOfDecimals(6);
+        colorMapDataRangeAction.initialize(dataRange, dataRange);
+        colorMapRangeAction.setEnabled(true);
+        _hasColorMapDataRange = true;
+        _preserveRestoredColorMapRange = false;
+    }
+
+    emit colorMapRangeChanged(colorMapRangeAction.getMinimum(), colorMapRangeAction.getMaximum());
 }
 
 void SettingsAction::fromVariantMap(const QVariantMap& variantMap)
@@ -147,6 +207,11 @@ void SettingsAction::fromVariantMap(const QVariantMap& variantMap)
         _colorMap1DAction.setColorMap(defaultColorMapName);
     }
 
+    _hasColorMapDataRange = false;
+    // Earlier versions serialized an unused default range; only restore ranges
+    // saved after range editing was enabled for this plugin.
+    _preserveRestoredColorMapRange = variantMap.value("Color map range initialized", false).toBool();
+
     _markerSelectionAction.fromParentVariantMap(variantMap);
     _standardDeviationClipAction.setEnabled(_standardizeExpressionToggleAction.isChecked());
 }
@@ -163,6 +228,7 @@ QVariantMap SettingsAction::toVariantMap() const
     _minimumDetectionPercentageAction.insertIntoVariantMap(variantMap);
     _maximumDotDiameterAction.insertIntoVariantMap(variantMap);
     _colorMap1DAction.insertIntoVariantMap(variantMap);
+    variantMap["Color map range initialized"] = _hasColorMapDataRange || _preserveRestoredColorMapRange;
     _markerSelectionAction.insertIntoVariantMap(variantMap);
     return variantMap;
 }
@@ -171,6 +237,8 @@ void SettingsAction::restoreLegacySettings(const QVariantMap& pluginVariantMap)
 {
     // Keep projects from the original QWidget-based implementation readable.
     _colorMap1DAction.setColorMap(defaultColorMapName);
+    _hasColorMapDataRange = false;
+    _preserveRestoredColorMapRange = false;
     if (pluginVariantMap.contains("GeneDotPlot:Expression"))
     {
         _pointDatasetPickerAction.fromVariantMap(pluginVariantMap.value("GeneDotPlot:Expression").toMap());
@@ -211,7 +279,7 @@ The last two modes reject negative input. Nonfinite input and back-transform ove
 
 Per-gene z-score standardizes color across DISPLAYED groups, using sample standard deviation and symmetric clipping. Constant and single-group genes map to zero. Scaling with few groups can be misleading; scaled colors cannot compare absolute expression between genes.
 
-1D Color map selects the palette for both dots and the color legend. The selected palette applies to unstandardized expression and per-gene z-scores. Changing the palette does not recalculate expression summaries. Palette selection is saved in the project.
+1D Color map selects the palette for both dots and the color legend. Its settings button opens the same popup as Scatterplot: adjust the minimum/maximum, mirror the palette, use discrete steps, or edit a custom palette. Values outside the chosen range use the endpoint colors. The selected palette applies to unstandardized expression and per-gene z-scores. Changing palette settings does not recalculate expression summaries. Palette settings and the chosen range are saved in the project. The range resets to the full scale when the expression color-data range changes; dot-size and detection-display changes preserve it.
 
 Click a plot row or dot to select its group and loaded member cells in linked ManiVault views. Ctrl-click toggles a group. Up/Down moves keyboard focus; Enter/Space selects. Selection does not filter cells or recalculate summaries. Group checkboxes change which groups are summarized. Overlapping groups are summarized independently; duplicate indices within a group are removed. Cells outside loaded subsets are omitted.
 

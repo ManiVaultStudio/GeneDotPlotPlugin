@@ -94,6 +94,20 @@ void GeneDotPlotWidget::setSelectedClusters(const QSet<int>& selectedClusterIndi
     update();
 }
 
+void GeneDotPlotWidget::setColorMapRange(double minimumColorValue, double maximumColorValue)
+{
+    // Keep the last valid scale while an endpoint is temporarily equal to or
+    // crosses the other endpoint during editing.
+    if (!std::isfinite(minimumColorValue) || !std::isfinite(maximumColorValue) || minimumColorValue >= maximumColorValue)
+    {
+        return;
+    }
+
+    _minimumColorValue = minimumColorValue;
+    _maximumColorValue = maximumColorValue;
+    update();
+}
+
 void GeneDotPlotWidget::refreshColors()
 {
     _geneColorValues.clear();
@@ -118,11 +132,13 @@ void GeneDotPlotWidget::refreshColors()
     {
         _maximumColorValue = _minimumColorValue + 1;
     }
+    _minimumColorDataValue = _minimumColorValue;
+    _maximumColorDataValue = _maximumColorValue;
 }
 
 QString GeneDotPlotWidget::colorLabel() const
 {
-    return _standardizeGeneExpression ? "Per-gene z-score (displayed groups)" : "Mean expression (chosen color scale)";
+    return _standardizeGeneExpression ? "Per-gene z-score (displayed groups)" : "Mean expression";
 }
 
 void GeneDotPlotWidget::refreshLayout()
@@ -306,8 +322,46 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
     }
 
     painter.drawImage(QRectF(370, legendY + 14, colorLegendWidth, 16), colorLegendImage);
-    painter.drawText(370, legendY + 52, formatNumber(_minimumColorValue));
-    painter.drawText(QRectF(550, legendY + 35, 100, 25), Qt::AlignRight | Qt::AlignVCenter, formatNumber(_maximumColorValue));
+    // Prefer five reference values, reducing the count when long labels would
+    // overlap. Keep endpoint labels within the color bar's horizontal extent.
+    int colorLegendIntervalCount = 4;
+    QStringList colorLegendLabels;
+    std::vector<double> colorLegendLabelPositions;
+    while (true)
+    {
+        colorLegendLabels.clear();
+        colorLegendLabelPositions.clear();
+        const double tickSpacing = (_maximumColorValue - _minimumColorValue) / colorLegendIntervalCount;
+        const double maximumAbsoluteValue = std::max(std::abs(_minimumColorValue), std::abs(_maximumColorValue));
+        const int numberOfSignificantDigits = tickSpacing > 0 && maximumAbsoluteValue > 0 ? std::clamp(int(std::ceil(std::log10(maximumAbsoluteValue) - std::log10(tickSpacing))) + 2, 4, 17) : 4;
+        double previousLabelRight = 0;
+        bool labelsOverlap = false;
+        for (int tickIndex = 0; tickIndex <= colorLegendIntervalCount; ++tickIndex)
+        {
+            const double fraction = tickIndex / double(colorLegendIntervalCount);
+            const double value = (1 - fraction) * _minimumColorValue + fraction * _maximumColorValue;
+            const QString label = QString::number(value == 0 ? 0 : value, 'g', numberOfSignificantDigits);
+            const double labelWidth = fontMetrics.horizontalAdvance(label);
+            const double tickX = 370 + fraction * colorLegendWidth;
+            const double labelLeft = std::clamp(tickX - labelWidth / 2, 370.0, 370.0 + colorLegendWidth - labelWidth);
+            labelsOverlap |= tickIndex > 0 && labelLeft < previousLabelRight + 8;
+            previousLabelRight = labelLeft + labelWidth;
+            colorLegendLabels << label;
+            colorLegendLabelPositions.push_back(labelLeft);
+        }
+        if (!labelsOverlap || colorLegendIntervalCount == 1)
+        {
+            break;
+        }
+        colorLegendIntervalCount /= 2;
+    }
+
+    for (int tickIndex = 0; tickIndex <= colorLegendIntervalCount; ++tickIndex)
+    {
+        const double tickX = 370 + colorLegendWidth * tickIndex / double(colorLegendIntervalCount);
+        painter.drawLine(QPointF(tickX, legendY + 30), QPointF(tickX, legendY + 35));
+        painter.drawText(QPointF(colorLegendLabelPositions[tickIndex], legendY + 52), colorLegendLabels[tickIndex]);
+    }
     painter.setPen(QColor("#526372"));
     painter.drawText(20, legendY + 88, QString("Blank: zero detection or below %1%.   x: no valid values.   Row counts: loaded cells/spots.").arg(_minimumDetectionFraction * 100, 0, 'g', 4));
     int textY = legendY + 113;

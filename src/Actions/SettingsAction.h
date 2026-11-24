@@ -24,6 +24,7 @@ public:
     void fromVariantMap(const QVariantMap& variantMap) override;
     QVariantMap toVariantMap() const override;
     void restoreLegacySettings(const QVariantMap& pluginVariantMap);
+    void updateColorMapDataRange(double minimumColorDataValue, double maximumColorDataValue);
 
     mv::gui::DatasetPickerAction& getPointDatasetPickerAction() { return _pointDatasetPickerAction; }
     mv::gui::DatasetPickerAction& getClusterDatasetPickerAction() { return _clusterDatasetPickerAction; }
@@ -47,6 +48,7 @@ signals:
     void aggregationSettingsChanged();
     void displaySettingsChanged();
     void allCellsRequested();
+    void colorMapRangeChanged(double minimumColorValue, double maximumColorValue);
 
 protected:
     QWidget* getWidget(QWidget* parent, const std::int32_t& widgetFlags) override;
@@ -69,4 +71,6 @@ private:
     ExportAction _exportAction;
     mv::gui::StringAction _statusMessageAction;
     QPointer<QWidget> _dialogParentWidget;
+    bool _hasColorMapDataRange = false;
+    bool _preserveRestoredColorMapRange = false;
 };

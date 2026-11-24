@@ -91,6 +91,7 @@ void GeneDotPlotPlugin::init()
     connect(&markerSelectionAction, &MarkerSelectionAction::selectionChanged, this, &GeneDotPlotPlugin::scheduleAggregation);
     connect(_geneDotPlotWidget, &GeneDotPlotWidget::groupActivated, this, &GeneDotPlotPlugin::selectGroupCells);
     connect(&_settingsAction.getColorMap1DAction(), &ColorMapAction::imageChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMap);
+    connect(&_settingsAction, &SettingsAction::colorMapRangeChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMapRange);
     _geneDotPlotWidget->setColorMap(_settingsAction.getColorMap1DAction().getColorMapImage());
 
     if (_hasDeferredProjectState)
@@ -636,6 +637,7 @@ void GeneDotPlotPlugin::updatePlotDisplay()
     {
         const QString title = (_pointDataset.isValid() ? _pointDataset->getGuiName() : QStringLiteral("Expression")) + QStringLiteral(" / ") + (_clusterDataset.isValid() ? _clusterDataset->getGuiName() : QStringLiteral("All cells"));
         _geneDotPlotWidget->setData(_displayedGroups, _geneSummaries, title, getMethodDescription());
+        _settingsAction.updateColorMapDataRange(_geneDotPlotWidget->getMinimumColorDataValue(), _geneDotPlotWidget->getMaximumColorDataValue());
     }
 }
 
