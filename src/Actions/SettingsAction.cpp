@@ -14,7 +14,7 @@ using namespace mv;
 using namespace mv::gui;
 
 namespace {
-const QString defaultColorMapName = QStringLiteral("GnBu");
+const QString defaultColorMapName = QStringLiteral("Reds");
 }
 
 SettingsAction::SettingsAction(QObject* parent, const QString& title) :
