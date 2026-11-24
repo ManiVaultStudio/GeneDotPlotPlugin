@@ -263,7 +263,7 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
             {
                 const double radius = genedot::dotRadius(summary.detectionFraction(), _maximumDotDiameter / 2);
                 painter.setBrush(valueColor(_geneColorValues[geneIndex][groupRow]));
-                painter.setPen(QPen(QColor("#64748b"), .5));
+                painter.setPen(Qt::NoPen);
                 painter.drawEllipse(center, radius, radius);
             }
         }
@@ -275,7 +275,7 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
     for (int i = 1; i <= 4; ++i)
     {
         const double x = 35 + (i - 1) * 70, radius = genedot::dotRadius(i / 4.0, _maximumDotDiameter / 2);
-        painter.setPen(QPen(QColor("#64748b"), .5));
+        painter.setPen(Qt::NoPen);
         painter.setBrush(QColor("#64748b"));
         painter.drawEllipse(QPointF(x, legendY + 25), radius, radius);
         painter.setPen(QColor("#172b3a"));
