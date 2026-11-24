@@ -634,7 +634,7 @@ void GeneDotPlotPlugin::updatePlotDisplay()
     _geneDotPlotWidget->setOptions(_settingsAction.getStandardizeExpressionToggleAction().isChecked(), _settingsAction.getStandardDeviationClipAction().getValue(), _settingsAction.getMinimumDetectionPercentageAction().getValue() / 100, _settingsAction.getMaximumDotDiameterAction().getValue());
     if (!_geneSummaries.empty() && !_aggregationWorkTimer.isActive() && !_aggregationRefreshTimer.isActive() && _currentGeneIndex == _selectedGeneDimensionIndices.size())
     {
-        const QString title = (_pointDataset.isValid() ? _pointDataset->getGuiName() : "Expression") + " / " + (_clusterDataset.isValid() ? _clusterDataset->getGuiName() : "All cells");
+        const QString title = (_pointDataset.isValid() ? _pointDataset->getGuiName() : QStringLiteral("Expression")) + QStringLiteral(" / ") + (_clusterDataset.isValid() ? _clusterDataset->getGuiName() : QStringLiteral("All cells"));
         _geneDotPlotWidget->setData(_displayedGroups, _geneSummaries, title, getMethodDescription());
     }
 }

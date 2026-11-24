@@ -75,6 +75,7 @@ private:
     double _minimumColorValue        = 0.0;
     double _maximumColorValue        = 1.0;
     int _leftMargin                  = 180;
+    int _pointCountColumnWidth       = 56;
     int _topMargin                   = 220;
     int _geneColumnWidth             = 42;
     int _groupRowHeight              = 34;

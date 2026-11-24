@@ -128,11 +128,17 @@ QString GeneDotPlotWidget::colorLabel() const
 void GeneDotPlotWidget::refreshLayout()
 {
     const QFontMetrics fontMetrics(font());
-    _leftMargin = 145;
+    _pointCountColumnWidth = std::max(56, fontMetrics.horizontalAdvance(QStringLiteral("numPoints")) + 8);
+    for (const auto& group : _cellGroups)
+    {
+        _pointCountColumnWidth = std::max(_pointCountColumnWidth, fontMetrics.horizontalAdvance(QString::number(qulonglong(group.cellCount))) + 8);
+    }
+
+    _leftMargin = std::max(145, fontMetrics.horizontalAdvance(QStringLiteral("Group")) + _pointCountColumnWidth + 53);
     _topMargin  = 90;
     for (const auto& group : _cellGroups)
     {
-        _leftMargin = std::max(_leftMargin, fontMetrics.horizontalAdvance(group.name) + 110);
+        _leftMargin = std::max(_leftMargin, fontMetrics.horizontalAdvance(group.name) + _pointCountColumnWidth + 53);
     }
     for (const auto& geneSummary : _geneSummaries)
     {
@@ -213,7 +219,13 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
 
     const QFontMetrics fontMetrics(font());
     painter.setPen(QColor("#526372"));
-    painter.drawText(20, 61, "Genes / features");
+    const double groupNameColumnWidth = _leftMargin - _pointCountColumnWidth - 53;
+    const double pointCountColumnLeft = _leftMargin - _pointCountColumnWidth - 10;
+    const double headerBaseline = _topMargin - 10;
+    const auto pointCountColumnTitle = QStringLiteral("numPoints");
+    painter.drawText(QPointF(33, headerBaseline), QStringLiteral("Group"));
+    painter.drawText(QPointF(_leftMargin - 10 - fontMetrics.horizontalAdvance(pointCountColumnTitle), headerBaseline), pointCountColumnTitle);
+
     for (int geneIndex = 0; geneIndex < int(_geneSummaries.size()); ++geneIndex)
     {
         painter.save();
@@ -240,9 +252,9 @@ void GeneDotPlotWidget::draw(QPainter& painter, bool exporting) const
         painter.setBrush(group.color);
         painter.drawRoundedRect(QRectF(20, y - 7, 5, 14), 2, 2);
         painter.setPen(QColor("#172b3a"));
-        painter.drawText(QRectF(33, y - 12, _leftMargin - 100, 24), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics.elidedText(group.name, Qt::ElideRight, _leftMargin - 100));
+        painter.drawText(QRectF(33, y - 12, groupNameColumnWidth, 24), Qt::AlignLeft | Qt::AlignVCenter, fontMetrics.elidedText(group.name, Qt::ElideRight, int(groupNameColumnWidth)));
         painter.setPen(QColor("#64748b"));
-        painter.drawText(QRectF(_leftMargin - 66, y - 12, 56, 24), Qt::AlignRight | Qt::AlignVCenter, QString::number(qulonglong(group.cellCount)));
+        painter.drawText(QRectF(pointCountColumnLeft, y - 12, _pointCountColumnWidth, 24), Qt::AlignRight | Qt::AlignVCenter, QString::number(qulonglong(group.cellCount)));
         if (!exporting && hasFocus() && groupRow == _focusedGroupRow)
         {
             painter.setPen(QPen(QColor("#2563eb"), 1, Qt::DashLine));
