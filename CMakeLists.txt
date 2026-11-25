@@ -50,6 +50,14 @@ set(UI
 set(Actions
     src/Actions/SettingsAction.h
     src/Actions/SettingsAction.cpp
+    src/Actions/DatasetsAction.h
+    src/Actions/DatasetsAction.cpp
+    src/Actions/DetectionAction.h
+    src/Actions/DetectionAction.cpp
+    src/Actions/PlotAction.h
+    src/Actions/PlotAction.cpp
+    src/Actions/ColoringAction.h
+    src/Actions/ColoringAction.cpp
     src/Actions/MarkerSelectionAction.h
     src/Actions/MarkerSelectionAction.cpp
     src/Actions/ExportAction.h

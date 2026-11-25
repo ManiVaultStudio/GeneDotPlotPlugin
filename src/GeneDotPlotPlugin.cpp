@@ -73,26 +73,25 @@ void GeneDotPlotPlugin::init()
     initializeDropHandling(plotScrollArea);
     initializeDatasetConnections();
 
-    connect(&_settingsAction.getPointDatasetPickerAction(), &DatasetPickerAction::currentDatasetChanged, this, [this](const Dataset<>& dataset) {
-        if (!_isRestoringState)
+    connect(&_settingsAction.getDatasetsAction().getPointDatasetPickerAction(), &DatasetPickerAction::currentDatasetChanged, this, [this](const Dataset<>& dataset) {
+        if (!_isRestoringState && !_isSynchronizingDatasetPickers)
         {
             setPointDataset(Dataset<Points>(dataset));
         }
     });
-    connect(&_settingsAction.getClusterDatasetPickerAction(), &DatasetPickerAction::currentDatasetChanged, this, [this](const Dataset<>& dataset) {
-        if (!_isRestoringState)
+    connect(&_settingsAction.getDatasetsAction().getClusterDatasetPickerAction(), &DatasetPickerAction::currentDatasetChanged, this, [this](const Dataset<>& dataset) {
+        if (!_isRestoringState && !_isSynchronizingDatasetPickers)
         {
             setClusterDataset(Dataset<Clusters>(dataset));
         }
     });
-    connect(&_settingsAction, &SettingsAction::allCellsRequested, this, [this] { setClusterDataset({}); });
     connect(&_settingsAction, &SettingsAction::aggregationSettingsChanged, this, &GeneDotPlotPlugin::scheduleAggregation);
     connect(&_settingsAction, &SettingsAction::displaySettingsChanged, this, &GeneDotPlotPlugin::updatePlotDisplay);
     connect(&markerSelectionAction, &MarkerSelectionAction::selectionChanged, this, &GeneDotPlotPlugin::scheduleAggregation);
     connect(_geneDotPlotWidget, &GeneDotPlotWidget::groupActivated, this, &GeneDotPlotPlugin::selectGroupCells);
-    connect(&_settingsAction.getColorMap1DAction(), &ColorMapAction::imageChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMap);
-    connect(&_settingsAction, &SettingsAction::colorMapRangeChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMapRange);
-    _geneDotPlotWidget->setColorMap(_settingsAction.getColorMap1DAction().getColorMapImage());
+    connect(&_settingsAction.getPlotAction().getColoringAction().getColorMap1DAction(), &ColorMapAction::imageChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMap);
+    connect(&_settingsAction.getPlotAction().getColoringAction(), &ColoringAction::colorMapRangeChanged, _geneDotPlotWidget, &GeneDotPlotWidget::setColorMapRange);
+    _geneDotPlotWidget->setColorMap(_settingsAction.getPlotAction().getColoringAction().getColorMap1DAction().getColorMapImage());
 
     if (_hasDeferredProjectState)
     {
@@ -242,8 +241,10 @@ void GeneDotPlotPlugin::setPointDataset(const Dataset<Points>& pointDataset)
     _aggregationWorkTimer.stop();
     _pointDataset = pointDataset;
     {
-        const QSignalBlocker blocker(&_settingsAction.getPointDatasetPickerAction());
-        _settingsAction.getPointDatasetPickerAction().setCurrentDataset(_pointDataset);
+        // Picker signals update its own dataset ID and every dropdown widget.
+        // Suppress only the plugin callback, rather than blocking those signals.
+        const QScopedValueRollback<bool> pickerSynchronizationGuard(_isSynchronizingDatasetPickers, true);
+        _settingsAction.getDatasetsAction().getPointDatasetPickerAction().setCurrentDataset(_pointDataset);
     }
     if (_clusterDataset.isValid() && !isCompatibleGrouping(_clusterDataset))
     {
@@ -268,8 +269,8 @@ void GeneDotPlotPlugin::setClusterDataset(const Dataset<Clusters>& clusterDatase
     {
         _groupingWarningMessage = "Groups rejected: choose Clusters attached to Points with the same source cell indices.";
         {
-            const QSignalBlocker blocker(&_settingsAction.getClusterDatasetPickerAction());
-            _settingsAction.getClusterDatasetPickerAction().setCurrentDataset(_clusterDataset);
+            const QScopedValueRollback<bool> pickerSynchronizationGuard(_isSynchronizingDatasetPickers, true);
+            _settingsAction.getDatasetsAction().getClusterDatasetPickerAction().setCurrentDataset(_clusterDataset);
         }
         scheduleAggregation();
         return;
@@ -279,8 +280,8 @@ void GeneDotPlotPlugin::setClusterDataset(const Dataset<Clusters>& clusterDatase
     _clusterDataset          = clusterDataset;
     _groupingWarningMessage.clear();
     {
-        const QSignalBlocker blocker(&_settingsAction.getClusterDatasetPickerAction());
-        _settingsAction.getClusterDatasetPickerAction().setCurrentDataset(_clusterDataset);
+        const QScopedValueRollback<bool> pickerSynchronizationGuard(_isSynchronizingDatasetPickers, true);
+        _settingsAction.getDatasetsAction().getClusterDatasetPickerAction().setCurrentDataset(_clusterDataset);
     }
     rebuildGroupSelection(isSameDataset);
     synchronizeGroupSelection();
@@ -358,7 +359,7 @@ void GeneDotPlotPlugin::rebuildGroupSelection(bool preserveSelection)
 
 genedot::InputScale GeneDotPlotPlugin::getInputScale() const
 {
-    return static_cast<genedot::InputScale>(_settingsAction.getInputScaleOptionAction().getCurrentIndex());
+    return static_cast<genedot::InputScale>(_settingsAction.getDatasetsAction().getInputScaleOptionAction().getCurrentIndex());
 }
 
 void GeneDotPlotPlugin::scheduleAggregation()
@@ -404,7 +405,7 @@ void GeneDotPlotPlugin::beginAggregation()
     }
     if (_clusterDataset.isValid() && !isCompatibleGrouping(_clusterDataset))
     {
-        message("The grouping no longer matches the expression data. Choose compatible Clusters or All cells.");
+        message("The grouping no longer matches the expression data. Choose compatible Clusters or clear the Cell groups dataset picker.");
         return;
     }
     for (int itemIndex = 0; itemIndex < _geneSelectionListWidget->count(); ++itemIndex)
@@ -529,7 +530,7 @@ void GeneDotPlotPlugin::calculateAggregationChunk()
             const auto membershipEnd       = _currentMemberOffset + std::min(remainingMembershipBudget, memberLocalIndices.size() - _currentMemberOffset);
             for (; _currentMemberOffset < membershipEnd; ++_currentMemberOffset, --remainingMembershipBudget)
             {
-                _groupExpressionAccumulator.addObservation(_currentGeneExpressionValues[memberLocalIndices[_currentMemberOffset]], getInputScale(), _settingsAction.getDetectionThresholdAction().getValue());
+                _groupExpressionAccumulator.addObservation(_currentGeneExpressionValues[memberLocalIndices[_currentMemberOffset]], getInputScale(), _settingsAction.getDetectionAction().getExpressionCutoffAction().getValue());
             }
             if (_currentMemberOffset == memberLocalIndices.size())
             {
@@ -566,13 +567,13 @@ void GeneDotPlotPlugin::calculateAggregationChunk()
 
 QString GeneDotPlotPlugin::getMethodDescription() const
 {
-    const QString scale = _settingsAction.getInputScaleOptionAction().getCurrentIndex() == 0   ? "Mean of stored values."
-                          : _settingsAction.getInputScaleOptionAction().getCurrentIndex() == 1 ? "Color = log1p(mean of linear normalized values)."
+    const QString scale = _settingsAction.getDatasetsAction().getInputScaleOptionAction().getCurrentIndex() == 0   ? "Mean of stored values."
+                          : _settingsAction.getDatasetsAction().getInputScaleOptionAction().getCurrentIndex() == 1 ? "Color = log1p(mean of linear normalized values)."
                                                                                                : "Log1p normalized input: mean = mean(expm1(input)); color = log1p(mean).";
     return QString("%1 Detection: input > %2; denominator = valid cells including zeros. Missing/rejected values excluded. %3 No normalization or statistical testing.")
         .arg(scale)
-        .arg(_settingsAction.getDetectionThresholdAction().getValue(), 0, 'g', 8)
-        .arg(_settingsAction.getStandardizeExpressionToggleAction().isChecked() ? QString("Colors z-scored across displayed groups per gene, clipped to +/-%1.").arg(_settingsAction.getStandardDeviationClipAction().getValue()) : "Colors unstandardized.");
+        .arg(_settingsAction.getDetectionAction().getExpressionCutoffAction().getValue(), 0, 'g', 8)
+        .arg(_settingsAction.getPlotAction().getColoringAction().getStandardizeExpressionToggleAction().isChecked() ? QString("Colors z-scored across displayed groups per gene, clipped to +/-%1.").arg(_settingsAction.getPlotAction().getColoringAction().getStandardDeviationClipAction().getValue()) : "Colors unstandardized.");
 }
 
 void GeneDotPlotPlugin::finishAggregation()
@@ -606,7 +607,7 @@ void GeneDotPlotPlugin::finishAggregation()
     {
         status += QString(" %1 missing; %2 rejected gene/group observations (see tooltips/CSV).").arg(qulonglong(missingValueCount)).arg(qulonglong(rejectedValueCount));
     }
-    if (_settingsAction.getStandardizeExpressionToggleAction().isChecked() && _displayedGroups.size() < 5)
+    if (_settingsAction.getPlotAction().getColoringAction().getStandardizeExpressionToggleAction().isChecked() && _displayedGroups.size() < 5)
     {
         status += " Z-scores with few groups can be misleading.";
     }
@@ -632,13 +633,16 @@ void GeneDotPlotPlugin::updatePlotDisplay()
         return;
     }
 
-    _geneDotPlotWidget->setGenesAsRows(_settingsAction.getPlotOrientationOptionAction().getCurrentIndex() == 1);
-    _geneDotPlotWidget->setOptions(_settingsAction.getStandardizeExpressionToggleAction().isChecked(), _settingsAction.getStandardDeviationClipAction().getValue(), _settingsAction.getMinimumDetectionPercentageAction().getValue() / 100, _settingsAction.getMaximumDotDiameterAction().getValue());
+    auto& plotAction = _settingsAction.getPlotAction();
+    auto& coloringAction = plotAction.getColoringAction();
+    auto& detectionAction = _settingsAction.getDetectionAction();
+    _geneDotPlotWidget->setGenesAsRows(plotAction.getPlotOrientationOptionAction().getCurrentIndex() == 1);
+    _geneDotPlotWidget->setOptions(coloringAction.getStandardizeExpressionToggleAction().isChecked(), coloringAction.getStandardDeviationClipAction().getValue(), detectionAction.getMinimumDetectionPercentageAction().getValue() / 100, plotAction.getMaximumDotDiameterAction().getValue());
     if (!_geneSummaries.empty() && !_aggregationWorkTimer.isActive() && !_aggregationRefreshTimer.isActive() && _currentGeneIndex == _selectedGeneDimensionIndices.size())
     {
         const QString title = (_pointDataset.isValid() ? _pointDataset->getGuiName() : QStringLiteral("Expression")) + QStringLiteral(" / ") + (_clusterDataset.isValid() ? _clusterDataset->getGuiName() : QStringLiteral("All cells"));
         _geneDotPlotWidget->setData(_displayedGroups, _geneSummaries, title, getMethodDescription());
-        _settingsAction.updateColorMapDataRange(_geneDotPlotWidget->getMinimumColorDataValue(), _geneDotPlotWidget->getMaximumColorDataValue());
+        coloringAction.updateColorMapDataRange(_geneDotPlotWidget->getMinimumColorDataValue(), _geneDotPlotWidget->getMaximumColorDataValue());
     }
 }
 
@@ -734,19 +738,12 @@ void GeneDotPlotPlugin::fromVariantMap(const QVariantMap& variantMap)
     {
         QScopedValueRollback<bool> restoringStateGuard(_isRestoringState, true);
 
-        if (variantMap.value("GeneDotPlot:ActionSettingsVersion", 0).toInt() >= 2)
-        {
-            _settingsAction.fromParentVariantMap(variantMap);
-        }
-        else
-        {
-            _settingsAction.restoreLegacySettings(variantMap);
-        }
+        _settingsAction.fromParentVariantMap(variantMap);
 
         // Capture both references before changing data: setPointDataset can
         // clear an incompatible grouping left over from the current project.
-        const auto restoredPointDataset   = _settingsAction.getPointDatasetPickerAction().getCurrentDataset<Points>();
-        const auto restoredClusterDataset = _settingsAction.getClusterDatasetPickerAction().getCurrentDataset<Clusters>();
+        const auto restoredPointDataset   = _settingsAction.getDatasetsAction().getPointDatasetPickerAction().getCurrentDataset<Points>();
+        const auto restoredClusterDataset = _settingsAction.getDatasetsAction().getClusterDatasetPickerAction().getCurrentDataset<Clusters>();
         setPointDataset(restoredPointDataset);
         setClusterDataset(restoredClusterDataset);
         _settingsAction.getMarkerSelectionAction().applyPendingSelectionState();
@@ -762,8 +759,7 @@ QVariantMap GeneDotPlotPlugin::toVariantMap() const
         return _deferredProjectState;
     }
 
-    auto variantMap                                 = ViewPlugin::toVariantMap();
-    variantMap["GeneDotPlot:ActionSettingsVersion"] = 2;
+    auto variantMap = ViewPlugin::toVariantMap();
     _settingsAction.insertIntoVariantMap(variantMap);
     return variantMap;
 }

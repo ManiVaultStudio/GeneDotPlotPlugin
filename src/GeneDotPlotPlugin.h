@@ -70,6 +70,7 @@ private:
     std::size_t _duplicateMembershipCount     = 0;
     bool _isCurrentGeneLoaded                 = false;
     bool _isRestoringState                    = false;
+    bool _isSynchronizingDatasetPickers       = false;
     bool _hasDeferredProjectState             = false;
     QString _groupingWarningMessage;
     mv::Datasets _deferredDatasets;
