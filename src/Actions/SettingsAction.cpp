@@ -78,32 +78,31 @@ QVariantMap SettingsAction::toVariantMap() const
 
 void SettingsAction::showHelp()
 {
-    const auto helpText = QString::fromUtf8(R"HELP(The toolbar groups settings into Datasets (expression data, cell groups and input scale), Detection (expression cutoff and Hide dots below), and Plot (layout, dot size and coloring). Export and Help remain directly accessible.
+    QMessageBox::information(_dialogParentWidget, "Gene expression dot plot",
+        "Load expression data (rows = cells, dimensions = genes), then optionally Clusters. "
+        "Clear Groups to remove grouping and summarize all loaded cells.\n\n"
 
-Load expression Points data (rows = cells/spots, dimensions = genes), then optionally compatible Clusters. Dropping Clusters alone uses its Points parent. Clear Cell groups to remove grouping and summarize all loaded cells.
+        "Ctrl/Shift-select genes or paste a marker list. Drag genes and groups to reorder. "
+        "Check groups to show them. Searching hides names without changing selection.\n\n"
 
-Ctrl/Shift-select genes or paste a marker list. Drag genes and groups to reorder. Check groups to show them. Searching hides names without changing selection.
+        "Dot area is proportional to the fraction of valid cells whose input value is strictly above the detection threshold. "
+        "The size scale always spans 0-100%. Mean expression includes zeros and all other valid observations. "
+        "A blank is zero detection or a hidden dot; x means no valid values. Hover for exact counts and summaries.\n\n"
 
-Plot orientation switches between Horizontal (cell types/groups as rows) and Vertical (genes as rows). Group names, colors, counts and selection follow their axis. Changing orientation does not change expression summaries, dot sizes or color scales.
+        "Input/color modes:\n"
+        "Mean: average input values without transforming.\n"
+        "Linear normalized: log1p(mean(input)).\n"
+        "Log1p normalized: mean(expm1(input)), then log1p for color, following Seurat-style averaging. "
+        "Use ONLY when the input is already log1p-normalized with natural logarithms.\n"
+        "The last two modes reject negative input. Nonfinite input and back-transform overflow are excluded and reported. "
+        "No library-size normalization is performed.\n\n"
 
-Dot AREA is proportional to the fraction of valid cells whose INPUT value is strictly above the detection threshold. The size scale always spans 0-100%. Mean expression includes zeros and all other valid observations. A blank is zero detection or a hidden dot; x means no valid values. Hover for exact counts and summaries.
+        "Per-gene z-score standardizes color across displayed groups, using sample standard deviation and symmetric clipping. "
+        "Constant and single-group genes map to zero.\n\n"
 
-Input/color modes:
-As stored: average supplied values without transforming. For signed/centered/residual data, an above-threshold fraction is not biological detection.
-Linear normalized: log1p(mean(input)).
-Log1p normalized: mean(expm1(input)), then log1p for color, following Seurat-style averaging. Use ONLY when the input is already log1p-normalized with natural logarithms.
-The last two modes reject negative input. Nonfinite input and back-transform overflow are excluded and reported. No library-size normalization is performed.
-
-Per-gene z-score standardizes color across DISPLAYED groups, using sample standard deviation and symmetric clipping. Constant and single-group genes map to zero. Scaling with few groups can be misleading; scaled colors cannot compare absolute expression between genes.
-
-1D Color map selects the palette for both dots and the color legend. Its settings button opens the same popup as Scatterplot: adjust the minimum/maximum, mirror the palette, use discrete steps, or edit a custom palette. Values outside the chosen range use the endpoint colors. The selected palette applies to unstandardized expression and per-gene z-scores. Changing palette settings does not recalculate expression summaries. Palette settings and the chosen range are saved in the project. The range resets to the full scale when the expression color-data range changes; dot-size and detection-display changes preserve it.
-
-Click a group row, group column or dot to select its group and loaded member cells in linked ManiVault views. Ctrl-click toggles a group. Up/Down moves group focus in Horizontal orientation; Left/Right moves group focus in Vertical orientation. Enter/Space selects. Selection does not filter cells or recalculate summaries. Group checkboxes change which groups are summarized. Overlapping groups are summarized independently; duplicate indices within a group are removed. Cells outside loaded subsets are omitted.
-
-Image exports remain disabled in this build. Save CSV includes counts, means, unscaled/displayed color values and method notes. CSV writes are atomic and disabled during aggregation.
-
-Project files retain datasets, gene/group order, visibility, search and plotting options. This view is descriptive and performs no differential-expression testing. Use violins to inspect distributions and cell embeddings to inspect individual cells.)HELP");
-
-    QMessageBox::information(_dialogParentWidget, "Gene expression dot plot", helpText);
+        "Click a group row, group column or dot to select its group and loaded member cells in linked ManiVault views. "
+        "Ctrl-click toggles a group. Up/Down moves group focus in Horizontal orientation; "
+        "Left/Right moves group focus in Vertical orientation. Enter/Space selects."
+    );
 }
 

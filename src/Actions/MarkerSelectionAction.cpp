@@ -20,7 +20,7 @@ using namespace mv::gui;
 MarkerSelectionAction::MarkerSelectionAction(QObject* parent, const QString& title) :
     GroupAction(parent, title, true),
     _geneSearchStringAction(this, "Gene search"),
-    _pasteMarkerGenesTriggerAction(this, "Paste marker genes..."),
+    _pasteMarkerGenesTriggerAction(this, "Paste genes..."),
     _showAllGroupsTriggerAction(this, "Show all"),
     _hideAllGroupsTriggerAction(this, "Hide all")
 {
@@ -61,6 +61,11 @@ QWidget* MarkerSelectionAction::getWidget(QWidget* parent, const std::int32_t& w
     _geneSelectionListWidget->setToolTip("Ctrl/Shift selects markers. Drag rows to change gene order. Searching does not clear selection.");
     markerSelectionLayout->addWidget(_geneSelectionListWidget, 3);
     markerSelectionLayout->addWidget(_pasteMarkerGenesTriggerAction.createWidget(markerSelectionWidget, TriggerAction::Text));
+
+    auto* selectionHintLabel = new QLabel("Ctrl/Shift selects genes.", markerSelectionWidget);
+    selectionHintLabel->setWordWrap(true);
+    markerSelectionLayout->addWidget(selectionHintLabel);
+
     markerSelectionLayout->addWidget(new QLabel("Groups: check to show; drag to reorder", markerSelectionWidget));
 
     _groupSelectionListWidget = new QListWidget(markerSelectionWidget);
@@ -73,9 +78,7 @@ QWidget* MarkerSelectionAction::getWidget(QWidget* parent, const std::int32_t& w
     groupVisibilityLayout->addWidget(_hideAllGroupsTriggerAction.createWidget(markerSelectionWidget, TriggerAction::Text));
     markerSelectionLayout->addLayout(groupVisibilityLayout);
 
-    auto* selectionHintLabel = new QLabel("Ctrl/Shift selects genes.\nClick a group to select its cells.\nCtrl-click toggles a group.", markerSelectionWidget);
-    selectionHintLabel->setWordWrap(true);
-    markerSelectionLayout->addWidget(selectionHintLabel);
+
 
     connect(_geneSelectionListWidget, &QListWidget::itemSelectionChanged, this, &MarkerSelectionAction::selectionChanged);
     connect(_geneSelectionListWidget->model(), &QAbstractItemModel::rowsMoved, this, &MarkerSelectionAction::selectionChanged);

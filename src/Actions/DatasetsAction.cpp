@@ -10,7 +10,7 @@ DatasetsAction::DatasetsAction(QObject* parent, const QString& title) :
     GroupAction(parent, title),
     _pointDatasetPickerAction(this, "Expression"),
     _clusterDatasetPickerAction(this, "Groups"),
-    _inputScaleOptionAction(this, "Input scale", {"As stored: mean", "Linear normalized: log1p(mean)", "Log1p normalized: back-transform, mean, log1p"})
+    _inputScaleOptionAction(this, "Input scale", {"Mean", "Linear normalized: log1p(mean)", "Log1p normalized: back-transform, mean, log1p"})
 {
     setIconByName("database");
     setToolTip("Datasets: expression data, cell groups and input scale");

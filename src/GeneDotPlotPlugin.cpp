@@ -591,7 +591,7 @@ void GeneDotPlotPlugin::finishAggregation()
         }
     }
 
-    QString status = QString("%1 genes x %2 groups; %3 loaded cells/spots. All valid observations used; overlapping groups counted independently.")
+    QString status = QString("%1 genes x %2 groups; %3 loaded cells/spots.")
                          .arg(qulonglong(_geneSummaries.size()))
                          .arg(qulonglong(_displayedGroups.size()))
                          .arg(qulonglong(_pointDataset->getNumPoints()));
